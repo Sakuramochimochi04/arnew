@@ -6,7 +6,6 @@
 <title>魔法のドレス AR (AR.js版 / iPhone対応)</title>
 <style>
   html, body { margin:0; padding:0; overflow:hidden; height:100%; background:#000; font-family:"Hiragino Sans","Yu Gothic",sans-serif; }
-  a-scene { position:fixed; inset:0; }
 
   #ui {
     position:fixed; left:0; right:0; bottom:0; z-index:20;
@@ -38,6 +37,10 @@
     margin-top:16px; padding:13px 26px; font-size:15px; border-radius:28px; border:none;
     background:linear-gradient(135deg,#f6d365,#fda085); color:#3a2a00; font-weight:bold;
   }
+
+  /* Safety net: make sure AR.js's injected camera <video> element is never
+     hidden behind other elements on iOS Safari. */
+  video { visibility: visible !important; opacity: 1 !important; }
 </style>
 </head>
 <body>
