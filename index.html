@@ -6,17 +6,15 @@
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <style>
   body { margin:0; padding:0; overflow:hidden; }
-
   #ui {
     position:fixed; left:0; right:0; bottom:0; z-index:30;
     display:flex; flex-direction:column; align-items:center; padding-bottom:30px;
-    pointer-events:none;
+    pointer-events:none; font-family:sans-serif;
   }
   #msg {
     margin-bottom:12px; padding:8px 16px; border-radius:16px;
     background:rgba(0,0,0,0.6); color:#fff; font-size:13px;
     max-width:82%; text-align:center; line-height:1.5;
-    font-family:sans-serif;
   }
   #spellBtn {
     pointer-events:auto;
@@ -34,57 +32,138 @@
 </div>
 
 <script>
-/* ── オリジナルキャラクター(著作権のあるデザインは使用していない) ── */
 AFRAME.registerComponent('magic-dress', {
   init: function () {
-    const el = this.el;
     const THREE = AFRAME.THREE;
     const group = new THREE.Group();
     this.group = group;
+    this.THREE = THREE;
 
-    const skinMat = new THREE.MeshStandardMaterial({color:0xffddc2, roughness:0.6});
-    const hairMat = new THREE.MeshStandardMaterial({color:0x6b4a2b, roughness:0.7});
-    const dressMat = new THREE.MeshStandardMaterial({color:0x8a8378, roughness:0.9, emissive:new THREE.Color(0x000000)});
-    this.dressMat = dressMat;
+    /* ── 変身前：くすんだ灰色のボロドレス ── */
+    const ragMat = new THREE.MeshStandardMaterial({
+      color: 0x7a7568, roughness: 0.95, metalness: 0
+    });
+    this.ragMat = ragMat;
 
-    // 頭
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12,24,24), skinMat);
-    head.position.y = 0.62;
-    group.add(head);
+    const ragBodice = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.13, 0.22, 16), ragMat
+    );
+    ragBodice.position.y = 0.52;
+    group.add(ragBodice);
+    this.ragBodice = ragBodice;
 
-    // 髪
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135,24,24), hairMat);
-    hair.scale.set(1,0.9,1);
-    hair.position.y = 0.66;
-    group.add(hair);
+    const ragSkirt = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22, 0.5, 20, 1, true), ragMat
+    );
+    ragSkirt.position.y = 0.16;
+    group.add(ragSkirt);
+    this.ragSkirt = ragSkirt;
 
-    // 上半身
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.3,20), dressMat);
-    torso.position.y = 0.38;
-    group.add(torso);
+    /* ── 変身後パーツ（最初は非表示） ── */
+    this.glowParts = [];
+    const coreBlue = 0xc8e6ff;
+    const shimmer  = 0xe8f4ff;
+    const accent   = 0xa8d4f5;
+    const deepBlue = 0x9ec8ef;
 
-    // スカート
-    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.25,0.42,24,1,true), dressMat);
-    skirt.position.y = 0.06;
-    group.add(skirt);
-    this.skirt = skirt;
+    // ボディス
+    const bodiceMat = new THREE.MeshStandardMaterial({
+      color: coreBlue, roughness: 0.3, metalness: 0.15,
+      emissive: new THREE.Color(0x4488cc), emissiveIntensity: 0.15
+    });
+    const bodice = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.14, 0.24, 20), bodiceMat
+    );
+    bodice.position.y = 0.55;
+    bodice.visible = false;
+    group.add(bodice);
+    this.glowParts.push(bodice);
 
-    // 腕
-    const armGeo = new THREE.CylinderGeometry(0.03,0.03,0.28,10);
-    const armL = new THREE.Mesh(armGeo, skinMat);
-    armL.position.set(-0.16,0.42,0); armL.rotation.z = Math.PI/10;
-    group.add(armL);
-    const armR = armL.clone();
-    armR.position.x = 0.16; armR.rotation.z = -Math.PI/10;
-    group.add(armR);
+    // ウエストリボン
+    const ribbonMat = new THREE.MeshStandardMaterial({
+      color: 0x7baed4, roughness: 0.4, metalness: 0.1,
+      emissive: new THREE.Color(0x3366aa), emissiveIntensity: 0.1
+    });
+    const ribbon = new THREE.Mesh(
+      new THREE.TorusGeometry(0.135, 0.015, 8, 32), ribbonMat
+    );
+    ribbon.position.y = 0.43;
+    ribbon.rotation.x = Math.PI / 2;
+    ribbon.visible = false;
+    group.add(ribbon);
+    this.glowParts.push(ribbon);
 
-    el.setObject3D('magicDress', group);
+    // リボンの結び目
+    const bowL = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 12, 12), ribbonMat
+    );
+    bowL.scale.set(1.8, 1, 0.6);
+    bowL.position.set(-0.04, 0.43, 0.13);
+    bowL.rotation.z = 0.4;
+    bowL.visible = false;
+    group.add(bowL);
+    this.glowParts.push(bowL);
+    const bowR = bowL.clone();
+    bowR.position.x = 0.04;
+    bowR.rotation.z = -0.4;
+    bowR.visible = false;
+    group.add(bowR);
+    this.glowParts.push(bowR);
 
+    // 多層スカート（5層）
+    this.skirtLayers = [];
+    var layerConfigs = [
+      { bot: 0.38, h: 0.55, y: 0.14, color: coreBlue, opacity: 1.0  },
+      { bot: 0.42, h: 0.56, y: 0.13, color: shimmer,  opacity: 0.7  },
+      { bot: 0.47, h: 0.54, y: 0.12, color: accent,   opacity: 0.45 },
+      { bot: 0.52, h: 0.52, y: 0.11, color: shimmer,  opacity: 0.3  },
+      { bot: 0.56, h: 0.50, y: 0.10, color: deepBlue,  opacity: 0.18 }
+    ];
+    for (var li = 0; li < layerConfigs.length; li++) {
+      var cfg = layerConfigs[li];
+      var mat = new THREE.MeshStandardMaterial({
+        color: cfg.color, roughness: 0.25, metalness: 0.1,
+        transparent: true, opacity: cfg.opacity, side: THREE.DoubleSide,
+        emissive: new THREE.Color(0x4488cc), emissiveIntensity: 0.12
+      });
+      var mesh = new THREE.Mesh(
+        new THREE.ConeGeometry(cfg.bot, cfg.h, 32, 1, true), mat
+      );
+      mesh.position.y = cfg.y;
+      mesh.visible = false;
+      group.add(mesh);
+      this.skirtLayers.push(mesh);
+      this.glowParts.push(mesh);
+    }
+
+    // スカート裾のフリル
+    this.frills = [];
+    for (var fi = 0; fi < 3; fi++) {
+      var frillMat = new THREE.MeshStandardMaterial({
+        color: shimmer, roughness: 0.3, metalness: 0.05,
+        transparent: true, opacity: 0.5 - fi * 0.12, side: THREE.DoubleSide,
+        emissive: new THREE.Color(0x6699cc), emissiveIntensity: 0.08
+      });
+      var frill = new THREE.Mesh(
+        new THREE.TorusGeometry(0.40 + fi * 0.06, 0.02 + fi * 0.005, 6, 40), frillMat
+      );
+      frill.position.y = -0.14 + fi * 0.04;
+      frill.rotation.x = Math.PI / 2;
+      frill.visible = false;
+      group.add(frill);
+      this.frills.push(frill);
+      this.glowParts.push(frill);
+    }
+
+    this.el.setObject3D('magicDress', group);
     this.transformed = false;
-    this.particles = null;
-    this.particleData = [];
     this.animating = false;
     this.animStart = 0;
+    this.sparkles = null;
+    this.sparkleTrail = null;
+    this.trailData = [];
+    this.sparkleData = [];
+    this.idleTime = 0;
   },
 
   castSpell: function () {
@@ -92,71 +171,146 @@ AFRAME.registerComponent('magic-dress', {
     this.transformed = true;
     this.animStart = Date.now();
     this.animating = true;
-    this.startColor = new AFRAME.THREE.Color(0x8a8378);
-    this.targetColor = new AFRAME.THREE.Color(0x8fd1ff);
-    this.startScale = this.skirt.scale.clone();
-    this.targetScale = new AFRAME.THREE.Vector3(1.7,1.25,1.7);
     this.spawnSparkles();
+    this.spawnTrail();
   },
 
   spawnSparkles: function () {
-    const THREE = AFRAME.THREE;
-    const count = 100;
-    const positions = new Float32Array(count*3);
-    this.particleData = [];
-    for (let i=0;i<count;i++){
-      const angle = Math.random()*Math.PI*2;
-      const radius = 0.15+Math.random()*0.3;
-      const y = Math.random()*0.65;
-      positions[i*3]   = Math.cos(angle)*radius;
+    var THREE = this.THREE;
+    var count = 200;
+    var positions = new Float32Array(count * 3);
+    var colors = new Float32Array(count * 3);
+    this.sparkleData = [];
+    for (var i = 0; i < count; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var radius = 0.1 + Math.random() * 0.45;
+      var y = Math.random() * 0.8;
+      positions[i*3]   = Math.cos(angle) * radius;
       positions[i*3+1] = y;
-      positions[i*3+2] = Math.sin(angle)*radius;
-      this.particleData.push({angle, radius, y, speed:0.6+Math.random()*1.4});
+      positions[i*3+2] = Math.sin(angle) * radius;
+      var r = 0.8 + Math.random() * 0.2;
+      var g = 0.85 + Math.random() * 0.15;
+      var b = 0.7 + Math.random() * 0.3;
+      colors[i*3] = r; colors[i*3+1] = g; colors[i*3+2] = b;
+      this.sparkleData.push({angle:angle, radius:radius, y:y, speed:0.5+Math.random()*1.8, drift:(Math.random()-0.5)*0.3});
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
-    const mat = new THREE.PointsMaterial({color:0xfff2b3, size:0.04, transparent:true, opacity:0.9});
-    if (this.particles) this.group.remove(this.particles);
-    this.particles = new THREE.Points(geo, mat);
-    this.group.add(this.particles);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    var mat = new THREE.PointsMaterial({
+      size: 0.025, transparent: true, opacity: 0.9,
+      vertexColors: true, depthWrite: false
+    });
+    this.sparkles = new THREE.Points(geo, mat);
+    this.group.add(this.sparkles);
+  },
+
+  spawnTrail: function () {
+    var THREE = this.THREE;
+    var count = 160;
+    var positions = new Float32Array(count * 3);
+    this.trailData = [];
+    for (var i = 0; i < count; i++) {
+      var t = i / count;
+      var angle = t * Math.PI * 6;
+      var radius = 0.15 + t * 0.35;
+      var y = t * 0.75;
+      positions[i*3]   = Math.cos(angle) * radius;
+      positions[i*3+1] = y;
+      positions[i*3+2] = Math.sin(angle) * radius;
+      this.trailData.push({baseAngle:angle, radius:radius, baseY:y, phase:t*Math.PI*2});
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.018, transparent: true, opacity: 0.7, depthWrite: false
+    });
+    this.sparkleTrail = new THREE.Points(geo, mat);
+    this.group.add(this.sparkleTrail);
   },
 
   tick: function () {
-    // パーティクルアニメーション
-    if (this.particles) {
-      const d = 0.016;
-      const pos = this.particles.geometry.attributes.position;
-      for (let i=0;i<this.particleData.length;i++){
-        const p = this.particleData[i];
-        p.angle += d*p.speed;
-        pos.setXYZ(i, Math.cos(p.angle)*p.radius, p.y, Math.sin(p.angle)*p.radius);
-      }
-      pos.needsUpdate = true;
-      this.particles.rotation.y += d*0.4;
-    }
+    var d = 0.016;
+    this.idleTime += d;
 
-    // ドレス変身アニメーション
     if (this.animating) {
-      const elapsed = (Date.now() - this.animStart) / 1000;
-      const t = Math.min(elapsed / 2.2, 1);
-      const eased = t*t*(3-2*t);
+      var elapsed = (Date.now() - this.animStart) / 1000;
+      var t = Math.min(elapsed / 2.8, 1);
+      var eased = t * t * (3 - 2 * t);
 
-      this.dressMat.color.copy(this.startColor).lerp(this.targetColor, eased);
-      this.dressMat.emissive.setRGB(eased*0.15, eased*0.15, eased*0.05);
-      this.skirt.scale.lerpVectors(this.startScale, this.targetScale, eased);
+      this.ragMat.opacity = 1 - eased;
+      this.ragMat.transparent = true;
+      if (eased > 0.3) {
+        this.ragBodice.visible = false;
+        this.ragSkirt.visible = false;
+      }
+
+      if (eased > 0.15) {
+        for (var pi = 0; pi < this.glowParts.length; pi++) {
+          this.glowParts[pi].visible = true;
+        }
+      }
+
+      var skirtProgress = Math.max(0, (eased - 0.15) / 0.85);
+      var skirtEased = skirtProgress * skirtProgress * (3 - 2 * skirtProgress);
+      for (var si = 0; si < this.skirtLayers.length; si++) {
+        var s = 0.3 + skirtEased * 0.7;
+        var extra = 1 + si * 0.08 * skirtEased;
+        this.skirtLayers[si].scale.set(s * extra, s, s * extra);
+      }
+      for (var fri = 0; fri < this.frills.length; fri++) {
+        this.frills[fri].scale.set(skirtEased, skirtEased, skirtEased);
+      }
+
       this.group.rotation.y = eased * Math.PI * 2;
 
       if (t >= 1) {
         this.animating = false;
-        document.getElementById('msg').textContent = '✨ ドレスが変わりました！';
+        document.getElementById('msg').textContent = '✨ ドレスが完成しました！';
+      }
+    }
+
+    if (this.sparkles) {
+      var pos = this.sparkles.geometry.attributes.position;
+      for (var i = 0; i < this.sparkleData.length; i++) {
+        var p = this.sparkleData[i];
+        p.angle += d * p.speed;
+        p.y += p.drift * d;
+        if (p.y > 0.85) p.y = 0;
+        if (p.y < 0) p.y = 0.85;
+        pos.setXYZ(i, Math.cos(p.angle) * p.radius, p.y, Math.sin(p.angle) * p.radius);
+      }
+      pos.needsUpdate = true;
+    }
+
+    if (this.sparkleTrail) {
+      var tPos = this.sparkleTrail.geometry.attributes.position;
+      var time = this.idleTime;
+      for (var ti = 0; ti < this.trailData.length; ti++) {
+        var tp = this.trailData[ti];
+        var a = tp.baseAngle + time * 1.2;
+        var r = tp.radius + Math.sin(time * 2 + tp.phase) * 0.04;
+        var y = tp.baseY + Math.sin(time * 1.5 + tp.phase) * 0.03;
+        tPos.setXYZ(ti, Math.cos(a) * r, y, Math.sin(a) * r);
+      }
+      tPos.needsUpdate = true;
+      this.sparkleTrail.rotation.y += d * 0.3;
+    }
+
+    if (this.transformed && !this.animating) {
+      this.group.rotation.y += d * 0.3;
+      var breathe = Math.sin(this.idleTime * 1.5) * 0.015;
+      for (var bi = 0; bi < this.skirtLayers.length; bi++) {
+        var base = 1 + bi * 0.08;
+        this.skirtLayers[bi].scale.x = base + breathe * (bi + 1);
+        this.skirtLayers[bi].scale.z = base + breathe * (bi + 1);
       }
     }
   }
 });
 
-/* ── ボタン制御 ── */
 function castSpell() {
-  const el = document.querySelector('[magic-dress]');
+  var el = document.querySelector('[magic-dress]');
   if (el && el.components['magic-dress']) {
     el.components['magic-dress'].castSpell();
     document.getElementById('msg').textContent = '✨ 魔法をかけています… ✨';
@@ -164,17 +318,16 @@ function castSpell() {
   }
 }
 
-/* ── マーカー検出時にボタン表示 ── */
-document.addEventListener('DOMContentLoaded', () => {
-  const scene = document.querySelector('a-scene');
-  scene.addEventListener('loaded', () => {
-    const target = document.querySelector('[mindar-image-target]');
+document.addEventListener('DOMContentLoaded', function() {
+  var scene = document.querySelector('a-scene');
+  scene.addEventListener('loaded', function() {
+    var target = document.querySelector('[mindar-image-target]');
     if (target) {
-      target.addEventListener('targetFound', () => {
+      target.addEventListener('targetFound', function() {
         document.getElementById('msg').textContent = '画像を検出しました！ ボタンを押してください';
         document.getElementById('spellBtn').style.display = 'block';
       });
-      target.addEventListener('targetLost', () => {
+      target.addEventListener('targetLost', function() {
         document.getElementById('msg').textContent = 'カードの画像にカメラを向けてください';
       });
     }
@@ -189,6 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
   vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false"
 >
+  <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
+  <a-light type="directional" color="#ffe8d0" intensity="0.8" position="1 2 1"></a-light>
+  <a-light type="point" color="#aaddff" intensity="0.4" position="0 1 0.5"></a-light>
+
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
   <a-entity mindar-image-target="targetIndex: 0">
