@@ -1,217 +1,199 @@
-<!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>魔法のドレス AR (AR.js版 / iPhone対応)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>魔法のドレス AR (MindAR版)</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <style>
-  html, body { margin:0; padding:0; overflow:hidden; height:100%; background:#000; font-family:"Hiragino Sans","Yu Gothic",sans-serif; }
+  body { margin:0; padding:0; overflow:hidden; }
 
   #ui {
-    position:fixed; left:0; right:0; bottom:0; z-index:20;
-    display:flex; flex-direction:column; align-items:center; padding-bottom:26px;
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; padding-bottom:30px;
     pointer-events:none;
   }
   #msg {
-    margin-bottom:14px; padding:9px 16px; border-radius:18px;
+    margin-bottom:12px; padding:8px 16px; border-radius:16px;
     background:rgba(0,0,0,0.6); color:#fff; font-size:13px;
     max-width:82%; text-align:center; line-height:1.5;
+    font-family:sans-serif;
   }
   #spellBtn {
     pointer-events:auto;
     padding:14px 30px; font-size:16px; border-radius:30px; border:none;
     background:linear-gradient(135deg,#f6d365,#fda085); color:#3a2a00; font-weight:bold;
-    box-shadow:0 4px 14px rgba(0,0,0,0.35);
+    box-shadow:0 4px 14px rgba(0,0,0,0.35); display:none;
   }
-  #spellBtn:disabled { opacity:0.4; }
-
-  #intro {
-    position:fixed; inset:0; z-index:30; background:#111; color:#fff;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center; padding:24px; box-sizing:border-box;
-  }
-  #intro h1 { font-size:19px; margin-bottom:10px; }
-  #intro p { font-size:13.5px; line-height:1.8; color:#ddd; max-width:480px; }
-  #intro img { width:150px; height:150px; margin:16px 0; border:6px solid #fff; }
-  #intro button {
-    margin-top:16px; padding:13px 26px; font-size:15px; border-radius:28px; border:none;
-    background:linear-gradient(135deg,#f6d365,#fda085); color:#3a2a00; font-weight:bold;
-  }
-
-  /* Safety net: make sure AR.js's injected camera <video> element is never
-     hidden behind other elements on iOS Safari. */
-  video { visibility: visible !important; opacity: 1 !important; }
 </style>
 </head>
 <body>
 
-<div id="intro">
-  <h1>✨ 魔法のドレス AR(AR.js版)✨</h1>
-  <p>
-    下の「Hiroマーカー」を印刷するか、別の画面(PCやタブレット)に表示してください。<br>
-    開始したらカメラをそのマーカーに向けると、その上に少女のキャラクターが現れます。<br>
-    画面下の「魔法をかける」ボタンを押すと、ドレスが美しく変化します。
-  </p>
-  <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" alt="Hiro marker">
-  <p style="font-size:12px;color:#999;">
-    ↑ このマーカー画像がAR.jsの標準マーカー(著作権フリーで配布されている素材)です。
-  </p>
-  <button onclick="document.getElementById('intro').style.display='none'; document.getElementById('msg').style.display='block';">
-    はじめる(カメラを許可してください)
-  </button>
-</div>
-
 <div id="ui">
-  <div id="msg" style="display:none;">マーカーにカメラを向けてください</div>
-  <button id="spellBtn" disabled onclick="castSpell()">✨ 魔法をかける ✨</button>
+  <div id="msg">カードの画像にカメラを向けてください</div>
+  <button id="spellBtn" onclick="castSpell()">✨ 魔法をかける ✨</button>
 </div>
-
-<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
 <script>
-// ---------- Original character (NOT any copyrighted design) ----------
-// A simple stylized figure built from primitives: a plain, dull "before"
-// dress that magically transforms into a shimmering ball gown, with a
-// sparkle particle burst. Inspired only by the generic public-domain
-// "Cinderella" fairy tale motif (rags -> ball gown), not any specific
-// company's character design.
+/* ── オリジナルキャラクター(著作権のあるデザインは使用していない) ── */
 AFRAME.registerComponent('magic-dress', {
   init: function () {
+    const el = this.el;
     const THREE = AFRAME.THREE;
     const group = new THREE.Group();
     this.group = group;
 
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffddc2, roughness: 0.6 });
-    const hairMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.7 });
-    const dressMat = new THREE.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.9, emissive: 0x000000 });
+    const skinMat = new THREE.MeshStandardMaterial({color:0xffddc2, roughness:0.6});
+    const hairMat = new THREE.MeshStandardMaterial({color:0x6b4a2b, roughness:0.7});
+    const dressMat = new THREE.MeshStandardMaterial({color:0x8a8378, roughness:0.9, emissive:new THREE.Color(0x000000)});
     this.dressMat = dressMat;
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 24), skinMat);
-    head.position.y = 2.6;
+    // 頭
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12,24,24), skinMat);
+    head.position.y = 0.62;
     group.add(head);
 
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.56, 24, 24), hairMat);
-    hair.scale.set(1, 0.9, 1);
-    hair.position.y = 2.75;
+    // 髪
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135,24,24), hairMat);
+    hair.scale.set(1,0.9,1);
+    hair.position.y = 0.66;
     group.add(hair);
 
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 1.3, 20), dressMat);
-    torso.position.y = 1.55;
+    // 上半身
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.3,20), dressMat);
+    torso.position.y = 0.38;
     group.add(torso);
 
-    const skirt = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.8, 24, 1, true), dressMat);
-    skirt.material = dressMat;
-    skirt.position.y = 0.25;
+    // スカート
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.25,0.42,24,1,true), dressMat);
+    skirt.position.y = 0.06;
     group.add(skirt);
     this.skirt = skirt;
 
-    const armGeo = new THREE.CylinderGeometry(0.13, 0.13, 1.2, 10);
+    // 腕
+    const armGeo = new THREE.CylinderGeometry(0.03,0.03,0.28,10);
     const armL = new THREE.Mesh(armGeo, skinMat);
-    armL.position.set(-0.65, 1.75, 0);
-    armL.rotation.z = Math.PI / 10;
+    armL.position.set(-0.16,0.42,0); armL.rotation.z = Math.PI/10;
     group.add(armL);
     const armR = armL.clone();
-    armR.position.x = 0.65;
-    armR.rotation.z = -Math.PI / 10;
+    armR.position.x = 0.16; armR.rotation.z = -Math.PI/10;
     group.add(armR);
 
-    group.scale.set(0.5, 0.5, 0.5);
-    this.el.setObject3D('magicDress', group);
+    el.setObject3D('magicDress', group);
 
     this.transformed = false;
-    this.clock = new THREE.Clock();
     this.particles = null;
     this.particleData = [];
-
-    this.el.addEventListener('castspell', () => this.castSpell());
+    this.animating = false;
+    this.animStart = 0;
   },
 
   castSpell: function () {
     if (this.transformed) return;
     this.transformed = true;
-
-    const THREE = AFRAME.THREE;
+    this.animStart = Date.now();
+    this.animating = true;
+    this.startColor = new AFRAME.THREE.Color(0x8a8378);
+    this.targetColor = new AFRAME.THREE.Color(0x8fd1ff);
+    this.startScale = this.skirt.scale.clone();
+    this.targetScale = new AFRAME.THREE.Vector3(1.7,1.25,1.7);
     this.spawnSparkles();
-
-    const startColor = new THREE.Color(0x8a8378);
-    const targetColor = new THREE.Color(0x8fd1ff);
-    const startScale = this.skirt.scale.clone();
-    const targetScale = new THREE.Vector3(1.7, 1.25, 1.7);
-    const duration = 2.2;
-    const startTime = this.clock.getElapsedTime();
-    const skirt = this.skirt;
-    const dressMat = this.dressMat;
-    const group = this.group;
-
-    const animate = () => {
-      const t = Math.min((this.clock.getElapsedTime() - startTime) / duration, 1);
-      const eased = t * t * (3 - 2 * t);
-      dressMat.color.copy(startColor).lerp(targetColor, eased);
-      dressMat.emissive.setRGB(eased * 0.15, eased * 0.15, eased * 0.05);
-      skirt.scale.lerpVectors(startScale, targetScale, eased);
-      group.rotation.y = eased * Math.PI * 2;
-      if (t < 1) requestAnimationFrame(animate);
-    };
-    animate();
   },
 
   spawnSparkles: function () {
     const THREE = AFRAME.THREE;
-    const count = 120;
-    const positions = new Float32Array(count * 3);
+    const count = 100;
+    const positions = new Float32Array(count*3);
     this.particleData = [];
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 0.6 + Math.random() * 1.1;
-      const y = Math.random() * 2.6;
-      positions[i * 3] = Math.cos(angle) * radius;
-      positions[i * 3 + 1] = y;
-      positions[i * 3 + 2] = Math.sin(angle) * radius;
-      this.particleData.push({ angle, radius, y, speed: 0.6 + Math.random() * 1.4 });
+    for (let i=0;i<count;i++){
+      const angle = Math.random()*Math.PI*2;
+      const radius = 0.15+Math.random()*0.3;
+      const y = Math.random()*0.65;
+      positions[i*3]   = Math.cos(angle)*radius;
+      positions[i*3+1] = y;
+      positions[i*3+2] = Math.sin(angle)*radius;
+      this.particleData.push({angle, radius, y, speed:0.6+Math.random()*1.4});
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xfff2b3, size: 0.09, transparent: true, opacity: 0.95 });
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const mat = new THREE.PointsMaterial({color:0xfff2b3, size:0.04, transparent:true, opacity:0.9});
     if (this.particles) this.group.remove(this.particles);
     this.particles = new THREE.Points(geo, mat);
     this.group.add(this.particles);
   },
 
-  tick: function (time, dt) {
-    if (!this.particles) return;
-    const d = dt / 1000;
-    const pos = this.particles.geometry.attributes.position;
-    for (let i = 0; i < this.particleData.length; i++) {
-      const p = this.particleData[i];
-      p.angle += d * p.speed;
-      pos.setXYZ(i, Math.cos(p.angle) * p.radius, p.y, Math.sin(p.angle) * p.radius);
+  tick: function () {
+    // パーティクルアニメーション
+    if (this.particles) {
+      const d = 0.016;
+      const pos = this.particles.geometry.attributes.position;
+      for (let i=0;i<this.particleData.length;i++){
+        const p = this.particleData[i];
+        p.angle += d*p.speed;
+        pos.setXYZ(i, Math.cos(p.angle)*p.radius, p.y, Math.sin(p.angle)*p.radius);
+      }
+      pos.needsUpdate = true;
+      this.particles.rotation.y += d*0.4;
     }
-    pos.needsUpdate = true;
-    this.particles.rotation.y += d * 0.4;
+
+    // ドレス変身アニメーション
+    if (this.animating) {
+      const elapsed = (Date.now() - this.animStart) / 1000;
+      const t = Math.min(elapsed / 2.2, 1);
+      const eased = t*t*(3-2*t);
+
+      this.dressMat.color.copy(this.startColor).lerp(this.targetColor, eased);
+      this.dressMat.emissive.setRGB(eased*0.15, eased*0.15, eased*0.05);
+      this.skirt.scale.lerpVectors(this.startScale, this.targetScale, eased);
+      this.group.rotation.y = eased * Math.PI * 2;
+
+      if (t >= 1) {
+        this.animating = false;
+        document.getElementById('msg').textContent = '✨ ドレスが変わりました！';
+      }
+    }
   }
 });
 
+/* ── ボタン制御 ── */
 function castSpell() {
-  const el = document.getElementById('magicChar');
-  el.emit('castspell');
-  document.getElementById('msg').textContent = '✨ 魔法をかけています…(ドレスが変化します) ✨';
+  const el = document.querySelector('[magic-dress]');
+  if (el && el.components['magic-dress']) {
+    el.components['magic-dress'].castSpell();
+    document.getElementById('msg').textContent = '✨ 魔法をかけています… ✨';
+    document.getElementById('spellBtn').style.display = 'none';
+  }
 }
+
+/* ── マーカー検出時にボタン表示 ── */
+document.addEventListener('DOMContentLoaded', () => {
+  const scene = document.querySelector('a-scene');
+  scene.addEventListener('loaded', () => {
+    const target = document.querySelector('[mindar-image-target]');
+    if (target) {
+      target.addEventListener('targetFound', () => {
+        document.getElementById('msg').textContent = '画像を検出しました！ ボタンを押してください';
+        document.getElementById('spellBtn').style.display = 'block';
+      });
+      target.addEventListener('targetLost', () => {
+        document.getElementById('msg').textContent = 'カードの画像にカメラを向けてください';
+      });
+    }
+  });
+});
 </script>
 
 <a-scene
+  mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind;"
+  color-space="sRGB"
+  renderer="colorManagement: true, physicallyCorrectLights"
   vr-mode-ui="enabled: false"
-  renderer="logarithmicDepthBuffer: true;"
-  embedded
-  arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+  device-orientation-permission-ui="enabled: false"
 >
-  <a-marker preset="hiro" id="hiroMarker"
-    emitevents="true"
-    onmarkerFound="document.getElementById('msg').textContent='マーカーを検出しました。「魔法をかける」を押してください'; document.getElementById('spellBtn').disabled=false;"
-    onmarkerLost="document.getElementById('msg').textContent='マーカーにカメラを向けてください';">
-    <a-entity id="magicChar" magic-dress position="0 0 0"></a-entity>
-  </a-marker>
-  <a-entity camera></a-entity>
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <a-entity mindar-image-target="targetIndex: 0">
+    <a-entity magic-dress position="0 0.3 0"></a-entity>
+  </a-entity>
 </a-scene>
 
 </body>
