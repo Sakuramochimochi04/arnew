@@ -1,7 +1,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>魔法のドレス AR (MindAR + GLBモデル版)</title>
+<title>魔法のドレス AR</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <style>
@@ -27,48 +27,26 @@
 <body>
 
 <div id="ui">
-  <div id="msg">カードの画像にカメラを向けてください</div>
+  <div id="msg">読み込み中…（少し時間がかかります）</div>
   <button id="spellBtn" onclick="castSpell()">✨ 魔法をかける ✨</button>
 </div>
 
 <script>
 AFRAME.registerComponent('magic-dress', {
   init: function () {
-    var self = this;
-    var THREE = AFRAME.THREE;
-    self.THREE = THREE;
-    self.group = new THREE.Group();
-    self.el.setObject3D('dressRoot', self.group);
-
-    self.transformed = false;
-    self.animating = false;
-    self.animStart = 0;
-    self.sparkles = null;
-    self.sparkleTrail = null;
-    self.trailData = [];
-    self.sparkleData = [];
-    self.idleTime = 0;
-    self.meshes = [];
-    self.origColors = [];
-
-    /* GLBモデルの読み込み */
-    var loader = new THREE.GLTFLoader
-      ? new THREE.GLTFLoader()
-      : null;
-
-    /* A-Frame 経由で GLTFLoader を使う */
-    var gltfLoader = new (THREE.GLTFLoader || window.GLTFLoader ||
-      (function() {
-        /* A-Frame には内部に GLTFLoader が含まれている */
-        return null;
-      })()
-    );
-
-    /* A-Frame の asset system 経由で読み込む方法を使う */
-    self.modelLoaded = false;
+    this.THREE = AFRAME.THREE;
+    this.transformed = false;
+    this.animating = false;
+    this.animStart = 0;
+    this.sparkles = null;
+    this.sparkleTrail = null;
+    this.trailData = [];
+    this.sparkleData = [];
+    this.idleTime = 0;
+    this.origColors = [];
+    this.modelLoaded = false;
   },
 
-  /* A-Frame の model-loaded イベント経由で取得 */
   events: {
     'model-loaded': function (evt) {
       var self = this;
@@ -77,24 +55,21 @@ AFRAME.registerComponent('magic-dress', {
       if (!model) return;
 
       self.modelLoaded = true;
+      document.getElementById('msg').textContent = 'カードの画像にカメラを向けてください';
 
-      /* 全メッシュを灰色に変更 & 記録 */
       model.traverse(function (child) {
         if (child.isMesh && child.material) {
           var mats = Array.isArray(child.material) ? child.material : [child.material];
           mats.forEach(function (mat) {
-            /* 元の色を保存 */
             self.origColors.push({
               mat: mat,
               origColor: mat.color ? mat.color.clone() : new THREE.Color(0xffffff)
             });
-            /* 灰色に塗り替え */
             if (mat.color) mat.color.set(0x8a8378);
             mat.roughness = 0.9;
             mat.metalness = 0;
             if (mat.emissive) mat.emissive.set(0x000000);
           });
-          self.meshes.push(child);
         }
       });
     }
@@ -171,7 +146,6 @@ AFRAME.registerComponent('magic-dress', {
     var d = 0.016;
     this.idleTime += d;
 
-    /* ── 変身アニメーション ── */
     if (this.animating) {
       var elapsed = (Date.now() - this.animStart) / 1000;
       var t = Math.min(elapsed / 2.8, 1);
@@ -182,17 +156,15 @@ AFRAME.registerComponent('magic-dress', {
 
       for (var ci = 0; ci < this.origColors.length; ci++) {
         var entry = this.origColors[ci];
-        var mat = entry.mat;
-        /* 灰色 → 水色へ補間 */
-        mat.color.copy(grayColor).lerp(targetBlue, eased);
-        mat.roughness = 0.9 - eased * 0.6;
-        mat.metalness = eased * 0.15;
-        if (mat.emissive) {
-          mat.emissive.setRGB(eased * 0.12, eased * 0.15, eased * 0.2);
+        var m = entry.mat;
+        m.color.copy(grayColor).lerp(targetBlue, eased);
+        m.roughness = 0.9 - eased * 0.6;
+        m.metalness = eased * 0.15;
+        if (m.emissive) {
+          m.emissive.setRGB(eased * 0.12, eased * 0.15, eased * 0.2);
         }
       }
 
-      /* ドレスを回転 */
       this.el.object3D.rotation.y = eased * Math.PI * 2;
 
       if (t >= 1) {
@@ -201,7 +173,6 @@ AFRAME.registerComponent('magic-dress', {
       }
     }
 
-    /* ── パーティクル ── */
     if (this.sparkles) {
       var pos = this.sparkles.geometry.attributes.position;
       for (var i = 0; i < this.sparkleData.length; i++) {
@@ -215,7 +186,6 @@ AFRAME.registerComponent('magic-dress', {
       pos.needsUpdate = true;
     }
 
-    /* ── 螺旋トレイル ── */
     if (this.sparkleTrail) {
       var tPos = this.sparkleTrail.geometry.attributes.position;
       var time = this.idleTime;
@@ -230,7 +200,6 @@ AFRAME.registerComponent('magic-dress', {
       this.sparkleTrail.rotation.y += d * 0.3;
     }
 
-    /* ── 完成後のアイドル（ゆっくり回転） ── */
     if (this.transformed && !this.animating) {
       this.el.object3D.rotation.y += d * 0.3;
     }
@@ -252,8 +221,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var target = document.querySelector('[mindar-image-target]');
     if (target) {
       target.addEventListener('targetFound', function() {
-        document.getElementById('msg').textContent = '画像を検出しました！ ボタンを押してください';
-        document.getElementById('spellBtn').style.display = 'block';
+        if (document.querySelector('[magic-dress]').components['magic-dress'].modelLoaded) {
+          document.getElementById('msg').textContent = '画像を検出しました！ ボタンを押してください';
+          document.getElementById('spellBtn').style.display = 'block';
+        } else {
+          document.getElementById('msg').textContent = 'モデル読み込み中…しばらくお待ちください';
+        }
       });
       target.addEventListener('targetLost', function() {
         document.getElementById('msg').textContent = 'カードの画像にカメラを向けてください';
@@ -281,14 +254,10 @@ document.addEventListener('DOMContentLoaded', function() {
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
   <a-entity mindar-image-target="targetIndex: 0">
-    <!--
-      dress.glb の大きさによって scale と position は調整が必要。
-      小さすぎる/大きすぎる場合は scale="0.1 0.1 0.1" のように変更。
-    -->
     <a-entity
       magic-dress
       gltf-model="#dressModel"
-      scale="0.5 0.5 0.5"
+      scale="0.003 0.003 0.003"
       position="0 0 0"
     ></a-entity>
   </a-entity>
